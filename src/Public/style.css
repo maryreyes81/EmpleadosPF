@@ -1,0 +1,15 @@
+.localTime {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .4rem;
+    padding: .35rem .6rem;
+    min-width: 300px;
+    height: 125px;
+  border-radius: 8px;
+  color: #0367eb;
+  background-color: #F2F2F3;
+  font: 500 0.9rem/1.2 system-ui, sans-serif;
+  box-sizing: border-box;
+  text-align: center;
+}

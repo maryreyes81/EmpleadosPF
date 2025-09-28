@@ -11,7 +11,7 @@ import { swaggerSpec } from './swagger/swagger.js';
 
 import employeesRouter from './routes/employees.routes.js';
 import authRouter from './routes/auth.routes.js';
-import { ping } from './db.js'; 
+import { ping } from './db.js';
 
 dotenv.config();
 
@@ -19,6 +19,7 @@ dotenv.config();
 const app = express();
 app.disable('etag');
 
+// Desactivar caché para todo lo que cuelga de /api
 app.use('/api', (req, res, next) => {
   res.set('Cache-Control', 'no-store');
   next();
@@ -44,12 +45,21 @@ const __dirname = path.dirname(__filename);
 // Archivos estáticos (frontend en ./public)
 app.use(express.static(path.join(__dirname, 'public')));
 
+// (Opcional) Redirige la raíz a la doc
+app.get('/', (_req, res) => res.redirect('/docs'));
+
 // Rutas API
 app.use('/api/auth', authRouter);
 app.use('/api/employees', employeesRouter);
 
-// Swagger UI
+// Vista simple para /login (sirve tu public/login.html)
+app.get('/login', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+// Swagger UI (+ JSON para debug)
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.get('/docs.json', (_req, res) => res.json(swaggerSpec));
 
 // Healthcheck
 app.get('/health', async (_req, res) => {
@@ -61,17 +71,6 @@ app.get('/health', async (_req, res) => {
   }
 });
 
-// 404 para cualquier cosa bajo /api que no exista
-app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }));
-
-// Start server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Servidor escuchando en http://localhost:${PORT}`);
-  console.log(`Swagger UI en             http://localhost:${PORT}/docs`);
-});
-
-
 // POST /api/time   { "latitude": 25.67, "longitude": -100.31 }
 app.post('/api/time', async (req, res) => {
   try {
@@ -80,10 +79,17 @@ app.post('/api/time', async (req, res) => {
       return res.status(400).json({ error: 'latitude y longitude deben ser números' });
     }
     const url = `https://timeapi.io/api/Time/current/coordinate?latitude=${latitude}&longitude=${longitude}`;
-    const r = await fetch(url); // Node 18+ tiene fetch global
+    const r = await fetch(url); // Node 18+ trae fetch global
     if (!r.ok) return res.status(r.status).json({ error: 'Fallo consultando el servicio de hora' });
     const t = await r.json();
-    res.json({ timezone: t.timeZone, date: t.date, time: t.time, dateTime: t.dateTime, utcOffset: t.utcOffset, raw: t });
+    res.json({
+      timezone: t.timeZone,
+      date: t.date,
+      time: t.time,
+      dateTime: t.dateTime,
+      utcOffset: t.utcOffset,
+      raw: t,
+    });
   } catch (err) {
     console.error('Error /api/time:', err);
     res.status(500).json({ error: 'No se pudo obtener la hora' });
@@ -93,3 +99,14 @@ app.post('/api/time', async (req, res) => {
 // (Opcional) Silenciar ruido de DevTools y favicon 404
 app.get('/.well-known/appspecific/com.chrome.devtools.json', (_req, res) => res.sendStatus(204));
 app.get('/favicon.ico', (_req, res) => res.sendStatus(204));
+
+// 404 para cualquier cosa bajo /api que no exista
+// 👇 OJO: esto va AL FINAL, después de TODAS las rutas /api
+app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }));
+
+// Start server
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Servidor escuchando en http://localhost:${PORT}`);
+  console.log(`Swagger UI en             http://localhost:${PORT}/docs`);
+});

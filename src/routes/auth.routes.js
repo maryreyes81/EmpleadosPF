@@ -6,9 +6,99 @@ import bcrypt from 'bcryptjs';
 const router = Router();
 
 /**
- * POST /api/auth/login
- * body: { email, password }
- * devuelve: { ok:true, user:{ emp_no, email, name } }
+ * @openapi
+ * tags:
+ *   - name: Auth
+ *     description: Autenticación de usuarios
+ * components:
+ *   schemas:
+ *     AuthLoginRequest:
+ *       type: object
+ *       required: [email, password]
+ *       properties:
+ *         email:
+ *           type: string
+ *           format: email
+ *           example: "mary.reyes@empresa.com"
+ *         password:
+ *           type: string
+ *           example: "123456"
+ *     AuthUser:
+ *       type: object
+ *       properties:
+ *         emp_no:
+ *           type: integer
+ *           example: 10001
+ *         email:
+ *           type: string
+ *           format: email
+ *           example: "mary.reyes@empresa.com"
+ *         name:
+ *           type: string
+ *           example: "Mary Reyes"
+ *     AuthLoginResponse:
+ *       type: object
+ *       properties:
+ *         ok:
+ *           type: boolean
+ *           example: true
+ *         user:
+ *           $ref: '#/components/schemas/AuthUser'
+ *     AuthErrorResponse:
+ *       type: object
+ *       properties:
+ *         ok:
+ *           type: boolean
+ *           example: false
+ *         error:
+ *           type: string
+ *           example: "Credenciales inválidas"
+ */
+
+/**
+ * @openapi
+ * /api/auth/login:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Iniciar sesión
+ *     description: Verifica credenciales en `employee_auth` y devuelve datos básicos del usuario.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/AuthLoginRequest'
+ *     responses:
+ *       200:
+ *         description: Login correcto
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AuthLoginResponse'
+ *       400:
+ *         description: Faltan campos requeridos
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AuthErrorResponse'
+ *       401:
+ *         description: Credenciales inválidas
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AuthErrorResponse'
+ *       403:
+ *         description: Acceso deshabilitado
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AuthErrorResponse'
+ *       500:
+ *         description: Error del servidor
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AuthErrorResponse'
  */
 router.post('/login', async (req, res) => {
   try {
@@ -26,7 +116,7 @@ router.post('/login', async (req, res) => {
       WHERE ea.email = ?
       LIMIT 1
     `;
-    const [rows] = await pool.query(sql, [email.toLowerCase()]);
+    const [rows] = await pool.query(sql, [String(email).toLowerCase()]);
     if (!rows.length) {
       return res.status(401).json({ ok: false, error: 'Credenciales inválidas' });
     }
@@ -55,8 +145,8 @@ router.post('/login', async (req, res) => {
       user: {
         emp_no: u.emp_no,
         email: u.email,
-        name: `${u.first_name} ${u.last_name}`
-      }
+        name: `${u.first_name} ${u.last_name}`,
+      },
     });
   } catch (err) {
     console.error('POST /api/auth/login error:', err);

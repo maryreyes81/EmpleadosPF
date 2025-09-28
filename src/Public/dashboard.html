@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -7,33 +8,47 @@
 
   <!-- CSP segura para dev (permite tu API y el CDN de Bootstrap) -->
   <meta http-equiv="Content-Security-Policy" content="
-    default-src 'self';
-    connect-src 'self' http://127.0.0.1:3000 http://localhost:3000 https://cdn.jsdelivr.net https:;
-    img-src 'self' data:;
-    style-src 'self' https://cdn.jsdelivr.net 'unsafe-inline';
-    script-src 'self' 'unsafe-inline';
-    font-src 'self' https://cdn.jsdelivr.net data:;
-  ">
+  default-src 'self';
+  connect-src 'self' http://127.0.0.1:3000 http://localhost:3000 https:;
+  img-src 'self' data:;
+  style-src 'self' https://cdn.jsdelivr.net 'unsafe-inline';
+  script-src 'self' 'unsafe-inline';
+  font-src 'self' https://cdn.jsdelivr.net data:;
+">
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="/app.js" defer></script>
+  <link href="/style.css" rel="stylesheet">
 </head>
+
 <body class="bg-light">
   <div class="container py-4">
 
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h1 class="m-0">Employees</h1>
       <div class="d-flex align-items-center gap-3">
+        <div class="localTime text-end">
+          <h3 class="m-0">Local Time</h3>
+          <div class="time fw-medium">--:--</div>
+          <div class="icon">----</div>
+          <div class="temp">°C</div>
+          <div class="summary">----</div>
+          <div class="location">----</div>
+        </div>
         <span id="userBadge" class="text-muted small"></span>
-        <button id="logoutBtn" class="btn btn-outline-danger btn-sm">Salir</button>
+        <button id="logoutBtn" class="btn btn-outline-danger btn-sm">Sign Out</button>
       </div>
     </div>
 
     <!-- ===== Búsqueda avanzada ===== -->
-    <h2 class="h4 mt-4 mb-3">Búsqueda avanzada</h2>
+    <h2 class="h4 mt-4 mb-3">Advanced Search</h2>
     <div class="card mb-3">
       <div class="card-body">
         <form id="formFind" class="row g-3 align-items-end">
+          <div class="col-md-2">
+            <label class="form-label">emp_no</label>
+            <input id="f_emp_no" type="number" class="form-control" min="1" placeholder="ej. 10001">
+          </div>
           <div class="col-md-3">
             <label class="form-label">first_name</label>
             <input id="f_first_name" type="text" class="form-control" placeholder="ej. Mary">
@@ -68,10 +83,11 @@
             <input id="f_offset" type="number" class="form-control" value="0" min="0">
           </div>
 
-          <div class="col-md-3">
-            <button id="btnFind" type="submit" class="btn btn-primary w-100">Buscar</button>
+          <div class="col-md-4 d-flex gap-2">
+            <button id="btnFind" type="submit" class="btn btn-primary flex-grow-1">Search</button>
+            <button id="btnFindClear" type="button" class="btn btn-outline-secondary">Clear</button>
           </div>
-          <div class="col-md-5 text-end small text-muted" id="findInfo"></div>
+          <div class="col-md-4 text-end small text-muted" id="findInfo"></div>
           <div class="col-12">
             <div id="findMsg" class="small"></div>
           </div>
@@ -90,16 +106,19 @@
             <th>gender</th>
             <th>birth_date</th>
             <th>hire_date</th>
+            <th class="text-end">actions</th>
           </tr>
         </thead>
         <tbody id="tblFindBody">
-          <tr><td colspan="6" class="text-muted">Sin datos</td></tr>
+          <tr>
+            <td colspan="6" class="text-muted">Sin datos</td>
+          </tr>
         </tbody>
       </table>
     </div>
 
     <!-- Formulario de inserción -->
-    <h2 class="h4 mb-3">Insertar empleado</h2>
+    <h2 class="h4 mb-3">Employee Insert</h2>
     <div class="card">
       <div class="card-body">
         <form id="formCreate" class="row g-3">
@@ -132,8 +151,8 @@
             <input id="hire_date" type="date" class="form-control" required>
           </div>
           <div class="col-12 d-flex gap-2">
-            <button class="btn btn-success" type="submit">Insertar</button>
-            <button class="btn btn-outline-secondary" type="button" id="btnClear">Limpiar</button>
+            <button class="btn btn-success" type="submit">Insert</button>
+            <button class="btn btn-outline-secondary" type="button" id="btnClear">Clear</button>
           </div>
         </form>
         <div id="createMsg" class="mt-3 small"></div>
@@ -141,7 +160,7 @@
     </div>
 
   </div>
-
-  <script src="/app.js" defer></script>
+  <script src="weather.js"> </script>
 </body>
+
 </html>

@@ -4,15 +4,15 @@
   <meta charset="utf-8" />
   <title>Login</title>
 
-  <!-- CSP (colócala antes de CSS/JS) -->
-  <meta http-equiv="Content-Security-Policy" content="
-    default-src 'self';
-    connect-src 'self' http://127.0.0.1:3000 http://localhost:3000 https://cdn.jsdelivr.net https:;
-    img-src 'self' data:;
-    style-src 'self' https://cdn.jsdelivr.net 'unsafe-inline';
-    script-src 'self' 'unsafe-inline';
-    font-src 'self' https://cdn.jsdelivr.net data:;
-  ">
+  <!-- CSP -->
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'self';
+  connect-src 'self' http://127.0.0.1:3000 http://localhost:3000 https:;
+  img-src 'self' data:;
+  style-src 'self' https://cdn.jsdelivr.net 'unsafe-inline';
+  script-src 'self' 'unsafe-inline';
+  font-src 'self' https://cdn.jsdelivr.net data:;
+">
 
   <!-- Bootstrap (una sola vez) -->
   <link rel="stylesheet"
@@ -23,7 +23,7 @@
 </head>
 <body class="bg-light">
   <div class="container mt-5" style="max-width:480px">
-    <h1 class="h3 mb-4 text-center">Iniciar sesión</h1>
+    <h1 class="h3 mb-4 text-center">Login</h1>
 
     <form id="loginForm" class="card card-body">
       <div class="mb-3">
@@ -32,11 +32,11 @@
       </div>
 
       <div class="mb-3">
-        <label for="password" class="form-label">Contraseña</label>
+        <label for="password" class="form-label">password</label>
         <input id="password" type="password" class="form-control" placeholder="••••••••" required>
       </div>
 
-      <button class="btn btn-primary w-100" type="submit">Entrar</button>
+      <button class="btn btn-primary w-100" type="submit">Login</button>
       <div id="loginMsg" class="small mt-2"></div>
     </form>
   </div>

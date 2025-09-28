@@ -19,12 +19,68 @@ const ORDERABLE_EMP = new Set(['emp_no', 'first_name', 'last_name', 'gender', 'h
 const isTrue = (v) => v === '1' || v === 'true';
 const reDate = /^\d{4}-\d{2}-\d{2}$/;
 
+/**
+ * @openapi
+ * components:
+ *   schemas:
+ *     Employee:
+ *       type: object
+ *       properties:
+ *         emp_no:      { type: integer, example: 500001 }
+ *         birth_date:  { type: string, format: date, example: "1990-05-10" }
+ *         first_name:  { type: string, example: "Mary" }
+ *         last_name:   { type: string, example: "Reyes" }
+ *         gender:      { type: string, enum: [M, F], example: "F" }
+ *         hire_date:   { type: string, format: date, example: "2020-01-15" }
+ *     EmployeeCreate:
+ *       type: object
+ *       required: [birth_date, first_name, last_name, gender, hire_date]
+ *       properties:
+ *         birth_date:  { type: string, format: date, example: "1990-05-10" }
+ *         first_name:  { type: string, example: "Mary" }
+ *         last_name:   { type: string, example: "Reyes" }
+ *         gender:      { type: string, enum: [M, F], example: "F" }
+ *         hire_date:   { type: string, format: date, example: "2020-01-15" }
+ */
+
 /* =========================================================
    GET /api/employees
    Filtros: first_name, last_name, gender, birth_date, hire_date
    Paginación: limit, offset
    Respuesta: { rows: [...], total: number }
    ========================================================= */
+/**
+ * @openapi
+ * /api/employees:
+ *   get:
+ *     tags: [Employees]
+ *     summary: Listar empleados con filtros y paginado
+ *     parameters:
+ *       - in: query
+ *         name: first_name
+ *         schema: { type: string }
+ *       - in: query
+ *         name: last_name
+ *         schema: { type: string }
+ *       - in: query
+ *         name: gender
+ *         schema: { type: string, enum: [M, F] }
+ *       - in: query
+ *         name: birth_date
+ *         schema: { type: string, format: date }
+ *       - in: query
+ *         name: hire_date
+ *         schema: { type: string, format: date }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+ *       - in: query
+ *         name: offset
+ *         schema: { type: integer, minimum: 0, default: 0 }
+ *     responses:
+ *       200:
+ *         description: OK
+ */
 router.get('/', async (req, res) => {
   try {
     let {
@@ -93,6 +149,24 @@ router.get('/', async (req, res) => {
    GET /api/employees/search?q=Geor&limit=20
    Búsqueda por nombre/apellido (rápida)
    ========================================================= */
+/**
+ * @openapi
+ * /api/employees/search:
+ *   get:
+ *     tags: [Employees]
+ *     summary: Búsqueda rápida por nombre/apellido
+ *     parameters:
+ *       - in: query
+ *         name: q
+ *         required: true
+ *         schema: { type: string }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+ *     responses:
+ *       200: { description: OK }
+ *       400: { description: Falta parámetro q }
+ */
 router.get('/search', async (req, res) => {
   try {
     const qtext = (req.query.q || '').trim();
@@ -124,6 +198,15 @@ router.get('/search', async (req, res) => {
    Catálogo de departamentos
    GET /api/employees/departments
    ========================================================= */
+/**
+ * @openapi
+ * /api/employees/departments:
+ *   get:
+ *     tags: [Employees]
+ *     summary: Catálogo de departamentos
+ *     responses:
+ *       200: { description: OK }
+ */
 router.get('/departments', async (_req, res) => {
   try {
     const rows = await q(
@@ -141,6 +224,27 @@ router.get('/departments', async (_req, res) => {
    GET /api/employees/:dept_no/employees?limit=20&offset=0
    (colocado ANTES de /:emp_no para no colisionar)
    ========================================================= */
+/**
+ * @openapi
+ * /api/employees/{dept_no}/employees:
+ *   get:
+ *     tags: [Employees]
+ *     summary: Empleados actuales por departamento (paginado)
+ *     parameters:
+ *       - in: path
+ *         name: dept_no
+ *         required: true
+ *         schema: { type: string, example: "d005" }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+ *       - in: query
+ *         name: offset
+ *         schema: { type: integer, minimum: 0, default: 0 }
+ *     responses:
+ *       200: { description: OK }
+ *       400: { description: dept_no inválido }
+ */
 router.get('/:dept_no/employees', async (req, res) => {
   try {
     const dept_no = (req.params.dept_no || '').toString().trim().toUpperCase();
@@ -175,6 +279,22 @@ router.get('/:dept_no/employees', async (req, res) => {
    Detalle simple
    GET /api/employees/10001
    ========================================================= */
+/**
+ * @openapi
+ * /api/employees/{emp_no}:
+ *   get:
+ *     tags: [Employees]
+ *     summary: Obtener empleado por ID
+ *     parameters:
+ *       - in: path
+ *         name: emp_no
+ *         required: true
+ *         schema: { type: integer }
+ *     responses:
+ *       200: { description: OK }
+ *       400: { description: emp_no inválido }
+ *       404: { description: No encontrado }
+ */
 router.get('/:emp_no', async (req, res) => {
   try {
     const emp_no = Number(req.params.emp_no);
@@ -195,6 +315,22 @@ router.get('/:emp_no', async (req, res) => {
    Detalle extendido (salario/título/depto actuales)
    GET /api/employees/:emp_no/full
    ========================================================= */
+/**
+ * @openapi
+ * /api/employees/{emp_no}/full:
+ *   get:
+ *     tags: [Employees]
+ *     summary: Detalle extendido (salario/título/depto actuales)
+ *     parameters:
+ *       - in: path
+ *         name: emp_no
+ *         required: true
+ *         schema: { type: integer }
+ *     responses:
+ *       200: { description: OK }
+ *       400: { description: emp_no inválido }
+ *       404: { description: No encontrado }
+ */
 router.get('/:emp_no/full', async (req, res) => {
   try {
     const emp_no = Number(req.params.emp_no);
@@ -233,6 +369,24 @@ router.get('/:emp_no/full', async (req, res) => {
    Salario (actual o historial)
    GET /api/employees/:emp_no/salary[?current=1]
    ========================================================= */
+/**
+ * @openapi
+ * /api/employees/{emp_no}/salary:
+ *   get:
+ *     tags: [Employees]
+ *     summary: Salario actual o historial
+ *     parameters:
+ *       - in: path
+ *         name: emp_no
+ *         required: true
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: current
+ *         schema: { type: string, enum: ["0","1","true","false"] }
+ *     responses:
+ *       200: { description: OK }
+ *       400: { description: emp_no inválido }
+ */
 router.get('/:emp_no/salary', async (req, res) => {
   try {
     const emp_no = Number(req.params.emp_no);
@@ -262,6 +416,24 @@ router.get('/:emp_no/salary', async (req, res) => {
    Títulos (actual o historial)
    GET /api/employees/:emp_no/titles[?current=1]
    ========================================================= */
+/**
+ * @openapi
+ * /api/employees/{emp_no}/titles:
+ *   get:
+ *     tags: [Employees]
+ *     summary: Títulos (actual o historial)
+ *     parameters:
+ *       - in: path
+ *         name: emp_no
+ *         required: true
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: current
+ *         schema: { type: string, enum: ["0","1","true","false"] }
+ *     responses:
+ *       200: { description: OK }
+ *       400: { description: emp_no inválido }
+ */
 router.get('/:emp_no/titles', async (req, res) => {
   try {
     const emp_no = Number(req.params.emp_no);
@@ -291,6 +463,24 @@ router.get('/:emp_no/titles', async (req, res) => {
    Departamentos del empleado (actual o historial)
    GET /api/employees/:emp_no/departments[?current=1]
    ========================================================= */
+/**
+ * @openapi
+ * /api/employees/{emp_no}/departments:
+ *   get:
+ *     tags: [Employees]
+ *     summary: Departamentos del empleado (actual o historial)
+ *     parameters:
+ *       - in: path
+ *         name: emp_no
+ *         required: true
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: current
+ *         schema: { type: string, enum: ["0","1","true","false"] }
+ *     responses:
+ *       200: { description: OK }
+ *       400: { description: emp_no inválido }
+ */
 router.get('/:emp_no/departments', async (req, res) => {
   try {
     const emp_no = Number(req.params.emp_no);
@@ -322,6 +512,28 @@ router.get('/:emp_no/departments', async (req, res) => {
    POST /api/employees
    Body: { birth_date, first_name, last_name, gender, hire_date }
    ========================================================= */
+/**
+ * @openapi
+ * /api/employees:
+ *   post:
+ *     tags: [Employees]
+ *     summary: Crear empleado
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/EmployeeCreate'
+ *     responses:
+ *       201:
+ *         description: Creado
+ *       400:
+ *         description: Datos inválidos (formato o campos faltantes)
+ *       409:
+ *         description: Conflicto (emp_no duplicado)
+ *       500:
+ *         description: Error en DB
+ */
 router.post('/', async (req, res) => {
   try {
     let { birth_date, first_name, last_name, gender, hire_date } = req.body;
@@ -370,6 +582,137 @@ router.post('/', async (req, res) => {
       return res.status(409).json({ error: 'Conflicto de emp_no' });
     }
     console.error('POST /api/employees error:', err);
+    return res.status(500).json({ error: 'DB error' });
+  }
+});
+
+/* =========================================================
+   Actualizar empleado
+   PUT /api/employees/:emp_no
+   Body: { birth_date, first_name, last_name, gender, hire_date }
+   ========================================================= */
+/**
+ * @openapi
+ * /api/employees/{emp_no}:
+ *   put:
+ *     tags: [Employees]
+ *     summary: Actualizar empleado
+ *     parameters:
+ *       - in: path
+ *         name: emp_no
+ *         required: true
+ *         schema: { type: integer }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/EmployeeCreate'
+ *     responses:
+ *       200:
+ *         description: Actualizado
+ *       400:
+ *         description: Datos inválidos
+ *       404:
+ *         description: Empleado no encontrado
+ *       500:
+ *         description: Error en DB
+ */
+router.put('/:emp_no', async (req, res) => {
+  try {
+    const emp_no = Number(req.params.emp_no);
+    if (!Number.isInteger(emp_no) || emp_no <= 0) {
+      return res.status(400).json({ error: 'emp_no debe ser entero positivo' });
+    }
+
+    let { birth_date, first_name, last_name, gender, hire_date } = req.body;
+
+    // Validaciones mínimas
+    if (!birth_date || !first_name || !last_name || !gender || !hire_date) {
+      return res.status(400).json({ error: 'Todos los campos son requeridos' });
+    }
+    if (!reDate.test(birth_date) || !reDate.test(hire_date)) {
+      return res.status(400).json({ error: 'birth_date y hire_date deben ser YYYY-MM-DD' });
+    }
+    gender = String(gender).trim().toUpperCase();
+    if (!['M', 'F'].includes(gender)) {
+      return res.status(400).json({ error: 'gender debe ser "M" o "F"' });
+    }
+
+    // ¿Existe?
+    const rows = await q('SELECT emp_no FROM employees WHERE emp_no = ?', [emp_no]);
+    if (!rows.length) return res.status(404).json({ error: 'Empleado no encontrado' });
+
+    // Update
+    await q(
+      `
+      UPDATE employees
+      SET birth_date = ?, first_name = ?, last_name = ?, gender = ?, hire_date = ?
+      WHERE emp_no = ?
+      `,
+      [birth_date, first_name, last_name, gender, hire_date, emp_no]
+    );
+
+    // Devuelve el registro actualizado
+    const [updated] = await q(
+      'SELECT emp_no, birth_date, first_name, last_name, gender, hire_date FROM employees WHERE emp_no = ?',
+      [emp_no]
+    );
+    return res.json({ ok: true, message: 'Empleado actualizado', data: updated });
+
+  } catch (err) {
+    console.error('PUT /api/employees/:emp_no error:', err);
+    return res.status(500).json({ error: 'DB error' });
+  }
+});
+
+/* =========================================================
+   Eliminar empleado
+   DELETE /api/employees/:emp_no
+   ========================================================= */
+/**
+ * @openapi
+ * /api/employees/{emp_no}:
+ *   delete:
+ *     tags: [Employees]
+ *     summary: Eliminar empleado
+ *     parameters:
+ *       - in: path
+ *         name: emp_no
+ *         required: true
+ *         schema: { type: integer }
+ *     responses:
+ *       200: { description: Eliminado }
+ *       404: { description: Empleado no encontrado }
+ *       409: { description: Tiene registros relacionados }
+ *       500: { description: Error en DB }
+ */
+router.delete('/:emp_no', async (req, res) => {
+  try {
+    const emp_no = Number(req.params.emp_no);
+    if (!Number.isInteger(emp_no) || emp_no <= 0) {
+      return res.status(400).json({ error: 'emp_no debe ser entero positivo' });
+    }
+
+    // ¿Existe?
+    const rows = await q('SELECT emp_no FROM employees WHERE emp_no = ?', [emp_no]);
+    if (!rows.length) return res.status(404).json({ error: 'Empleado no encontrado' });
+
+    // Si tienes FKs sin cascade, elimina primero hijos:
+    // await q('DELETE FROM salaries  WHERE emp_no = ?', [emp_no]);
+    // await q('DELETE FROM titles    WHERE emp_no = ?', [emp_no]);
+    // await q('DELETE FROM dept_emp  WHERE emp_no = ?', [emp_no]);
+
+    const result = await q('DELETE FROM employees WHERE emp_no = ?', [emp_no]);
+    // result.affectedRows (en mysql2) o similar
+    return res.json({ ok: true, deleted: 1 });
+
+  } catch (err) {
+    console.error('DELETE /api/employees/:emp_no error:', err);
+    // Error típico de FK: ER_ROW_IS_REFERENCED_2
+    if (err?.code === 'ER_ROW_IS_REFERENCED_2' || err?.errno === 1451) {
+      return res.status(409).json({ error: 'No se puede eliminar: tiene registros relacionados' });
+    }
     return res.status(500).json({ error: 'DB error' });
   }
 });
