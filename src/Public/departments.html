@@ -22,7 +22,7 @@
   <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h1 class="m-0">Departments</h1>
-      <a href="/" class="btn btn-link">← Back</a>
+      <a href="/dashboard.html" class="btn btn-link">← Back</a>
     </div>
 
     <div class="card mb-3">
@@ -38,13 +38,9 @@
             <label class="form-label">limit</label>
             <input id="limit" type="number" class="form-control" value="20" min="1" max="100">
           </div>
-          <!-- <div class="col-md-2">
-            <label class="form-label">offset</label>
-            <input id="offset" type="number" class="form-control" value="0" min="0">
-          </div> -->
 
           <!-- Botones alineados a la derecha -->
-          <div class="col-md-4 d-flex justify-content-end gap-2">
+          <div class="col-md-6 d-flex justify-content-end gap-2">
             <button type="submit" class="btn btn-primary">Consult</button>
             <button type="button" id="btnClear" class="btn btn-outline-secondary">Clear</button>
           </div>
@@ -75,139 +71,133 @@
 
     <div id="listInfo" class="text-end small text-muted"></div>
   </div>
+
   <script>
-(function () {
-  'use strict';
-  var API = window.location.origin;
+  (function () {
+    'use strict';
+    var API = window.location.origin;
 
-  function $(s) { return document.querySelector(s); }
-  function setMsg(el, type, text) {
-    if (!el) return;
-    el.className = 'small' + (type ? ' text-' + type : '');
-    el.textContent = text || '';
-  }
-
-  var form    = $('#formDept');
-  var msg     = $('#msg');
-  var tbody   = $('#tblBody');
-  var info    = $('#listInfo');
-  var sel     = $('#deptSelect');
-  var limitI  = $('#limit');
-  var offsetI = $('#offset');
-  var btnClear= $('#btnClear');
-
-  var DEPTS = new Map();
-
-  function renderRows(rows, dept_no, dept_name) {
-    if (!tbody) return;
-    var arr = Array.isArray(rows) ? rows : [];
-    if (arr.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" class="text-muted">Sin datos</td></tr>';
-      return;
+    function $(s) { return document.querySelector(s); }
+    function setMsg(el, type, text) {
+      if (!el) return;
+      el.className = 'small' + (type ? ' text-' + type : '');
+      el.textContent = text || '';
     }
-    var html = arr.map(function (r) {
-      return (
-        '<tr>' +
-          '<td>' + (r.emp_no != null ? r.emp_no : '') + '</td>' +
-          '<td>' + (r.first_name || '') + '</td>' +
-          '<td>' + (r.last_name  || '') + '</td>' +
-          '<td>' + (dept_no      || '') + '</td>' +
-          '<td>' + (dept_name    || '') + '</td>' +
-        '</tr>'
-      );
-    }).join('');
-    tbody.innerHTML = html;
-  }
+    function qs(obj) {
+      var u = new URLSearchParams();
+      Object.keys(obj).forEach(function (k) { u.set(k, obj[k]); });
+      return u.toString();
+    }
 
-  function qs(obj) {
-    var u = new URLSearchParams();
-    Object.keys(obj).forEach(function (k) { u.set(k, obj[k]); });
-    return u.toString();
-  }
+    var form    = $('#formDept');
+    var msg     = $('#msg');
+    var tbody   = $('#tblBody');
+    var info    = $('#listInfo');
+    var sel     = $('#deptSelect');
+    var limitI  = $('#limit');
+    var btnClear= $('#btnClear');
 
-  async function loadDepartments() {
-    setMsg(msg, '', 'Cargando departamentos…');
-    try {
-      var r = await fetch(API + '/api/employees/departments', { headers: { Accept: 'application/json' } });
-      var text = await r.text();
-      console.log('[departments] status', r.status, 'len', text.length);
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      var rows = text ? JSON.parse(text) : [];
-      if (!Array.isArray(rows)) throw new Error('Respuesta inválida de departamentos');
+    var DEPTS = new Map();
 
-      if (!sel) return;
-      sel.innerHTML = '<option value="">Selecciona…</option>' + rows.map(function (d) {
-        return '<option value="' + d.dept_no + '">' + d.dept_no + ' — ' + d.dept_name + '</option>';
-      }).join('');
-
-      rows.forEach(function (d) { DEPTS.set(String(d.dept_no).toUpperCase(), d.dept_name); });
-      setMsg(msg, 'success', '');
-
-      if (rows.length > 0) {
-        sel.value = rows[0].dept_no;
-        if (form) form.dispatchEvent(new Event('submit'));
-      } else {
-        setMsg(msg, 'warning', 'No hay departamentos en el catálogo.');
+    function renderRows(rows, dept_no, dept_name) {
+      if (!tbody) return;
+      var arr = Array.isArray(rows) ? rows : [];
+      if (arr.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-muted">Sin datos</td></tr>';
+        return;
       }
-    } catch (e) {
-      console.error('departments error:', e);
-      setMsg(msg, 'danger', e.message || 'No se pudo cargar el catálogo');
+      var html = arr.map(function (r) {
+        return (
+          '<tr>' +
+            '<td>' + (r.emp_no != null ? r.emp_no : '') + '</td>' +
+            '<td>' + (r.first_name || '') + '</td>' +
+            '<td>' + (r.last_name  || '') + '</td>' +
+            '<td>' + (dept_no      || '') + '</td>' +
+            '<td>' + (dept_name    || '') + '</td>' +
+          '</tr>'
+        );
+      }).join('');
+      tbody.innerHTML = html;
     }
-  }
 
-  async function fetchEmployeesByDept(dept_no, limit, offset) {
-    var url = API + '/api/employees/' + encodeURIComponent(dept_no) + '/employees?' +
-              qs({ limit: String(limit), offset: String(offset) });
-    var r = await fetch(url, { headers: { Accept: 'application/json' } });
-    var text = await r.text();
-    console.log('[dept employees] GET', url, 'status', r.status, 'len', text.length);
-    var data = null; try { data = text ? JSON.parse(text) : null; } catch (_e) {}
-    if (!r.ok) {
-      var m = (data && (data.error || data.message)) || 'HTTP ' + r.status;
-      throw new Error(m);
+    async function loadDepartments() {
+      setMsg(msg, '', 'Cargando departamentos…');
+      try {
+        var r = await fetch(API + '/api/employees/departments', { headers: { Accept: 'application/json' } });
+        var text = await r.text();
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        var rows = text ? JSON.parse(text) : [];
+        if (!Array.isArray(rows)) throw new Error('Respuesta inválida de departamentos');
+
+        if (!sel) return;
+        // No autoseleccionamos ni disparamos submit
+        sel.innerHTML = '<option value="">Select…</option>' + rows.map(function (d) {
+          return '<option value="' + d.dept_no + '">' + d.dept_no + ' — ' + d.dept_name + '</option>';
+        }).join('');
+
+        rows.forEach(function (d) { DEPTS.set(String(d.dept_no).toUpperCase(), d.dept_name); });
+        setMsg(msg, 'success', '');
+      } catch (e) {
+        console.error('departments error:', e);
+        setMsg(msg, 'danger', e.message || 'No se pudo cargar el catálogo');
+      }
     }
-    return Array.isArray(data) ? data : [];
-  }
 
-  if (form) form.addEventListener('submit', async function (e) {
-    e.preventDefault();
-    setMsg(msg, '', 'Consultando…');
+    async function fetchEmployeesByDept(dept_no, limit) {
+      // offset fijo en 0
+      var url = API + '/api/employees/' + encodeURIComponent(dept_no) + '/employees?' +
+                qs({ limit: String(limit), offset: '0' });
+      var r = await fetch(url, { headers: { Accept: 'application/json' } });
+      var text = await r.text();
+      var data = null; try { data = text ? JSON.parse(text) : null; } catch (_e) {}
+      if (!r.ok) {
+        var m = (data && (data.error || data.message)) || 'HTTP ' + r.status;
+        throw new Error(m);
+      }
+      return Array.isArray(data) ? data : [];
+    }
 
-    var dept_no = (sel && typeof sel.value === 'string') ? sel.value.trim().toUpperCase() : '';
-    var limit   = Math.min(Math.max(Number((limitI && limitI.value) || '20'), 1), 100);
-    var offset  = Math.max(Number((offsetI && offsetI.value) || '0'), 0);
+    // Submit del formulario (solo cuando presionas "Consult")
+    if (form) form.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      setMsg(msg, '', 'Consultando…');
 
-    if (!dept_no) { setMsg(msg, 'danger', 'Selecciona un departamento.'); return; }
-    var dept_name = DEPTS.get(dept_no) || '';
+      var dept_no = (sel && typeof sel.value === 'string') ? sel.value.trim().toUpperCase() : '';
+      var limit   = Math.min(Math.max(Number((limitI && limitI.value) || '20'), 1), 100);
 
-    try {
-      var rows = await fetchEmployeesByDept(dept_no, limit, offset);
-      renderRows(rows, dept_no, dept_name);
-      if (info) info.textContent = 'Mostrando ' + rows.length + ' empleados de ' + dept_no + ' — ' + dept_name;
-      setMsg(msg, 'success', '');
-    } catch (err) {
-      console.error('fetch by dept error:', err);
-      renderRows([], dept_no, dept_name);
+      if (!dept_no) { setMsg(msg, 'danger', 'Selecciona un departamento.'); return; }
+      var dept_name = DEPTS.get(dept_no) || '';
+
+      try {
+        var rows = await fetchEmployeesByDept(dept_no, limit);
+        renderRows(rows, dept_no, dept_name);
+        if (info) info.textContent = 'Mostrando ' + rows.length + ' empleados de ' + dept_no + ' — ' + dept_name;
+        setMsg(msg, 'success', '');
+      } catch (err) {
+        console.error('fetch by dept error:', err);
+        renderRows([], dept_no, dept_name);
+        if (info) info.textContent = '';
+        setMsg(msg, 'danger', err.message || 'No se pudo consultar');
+      }
+    });
+
+    // Ya no auto-consulta al cambiar el select
+    // if (sel && form) sel.addEventListener('change', function () {
+    //   form.dispatchEvent(new Event('submit'));
+    // });
+
+    // Limpiar
+    if (btnClear) btnClear.addEventListener('click', function () {
+      if (sel) sel.value = '';
+      if (limitI) limitI.value = '20';
+      if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-muted">Sin datos</td></tr>';
       if (info) info.textContent = '';
-      setMsg(msg, 'danger', err.message || 'No se pudo consultar');
-    }
-  });
+      setMsg(msg, '', '');
+    });
 
-  if (sel && form) sel.addEventListener('change', function () {
-    form.dispatchEvent(new Event('submit'));
-  });
-
-  if (btnClear) btnClear.addEventListener('click', function () {
-    if (sel) sel.value = '';
-    if (limitI) limitI.value = '20';
-    if (offsetI) offsetI.value = '0';
-    if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-muted">Sin datos</td></tr>';
-    if (info) info.textContent = '';
-    setMsg(msg, '', '');
-  });
-
-  document.addEventListener('DOMContentLoaded', loadDepartments);
-})();
-</script>
+    // Init: solo cargar catálogo, sin consultar empleados
+    document.addEventListener('DOMContentLoaded', loadDepartments);
+  })();
+  </script>
 </body>
 </html>
