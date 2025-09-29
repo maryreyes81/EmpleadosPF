@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Employees · Departments</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- CSP similar a tu dashboard -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    connect-src 'self' http://127.0.0.1:3000 http://localhost:3000 https:;
+    img-src 'self' data:;
+    style-src 'self' https://cdn.jsdelivr.net 'unsafe-inline';
+    script-src 'self' 'unsafe-inline';
+    font-src 'self' https://cdn.jsdelivr.net data:;
+  ">
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"/>
+  <link rel="stylesheet" href="/style.css"/>
+</head>
+<body class="bg-light">
+  <div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h1 class="m-0">Departments</h1>
+      <a href="/" class="btn btn-link">← Back</a>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <form id="formDept" class="row g-3 align-items-end">
+          <div class="col-md-4">
+            <label class="form-label">Department</label>
+            <select id="deptSelect" class="form-select">
+              <option value="">Select…</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">limit</label>
+            <input id="limit" type="number" class="form-control" value="20" min="1" max="100">
+          </div>
+          <!-- <div class="col-md-2">
+            <label class="form-label">offset</label>
+            <input id="offset" type="number" class="form-control" value="0" min="0">
+          </div> -->
+
+          <!-- Botones alineados a la derecha -->
+          <div class="col-md-4 d-flex justify-content-end gap-2">
+            <button type="submit" class="btn btn-primary">Consult</button>
+            <button type="button" id="btnClear" class="btn btn-outline-secondary">Clear</button>
+          </div>
+
+          <div class="col-12">
+            <div id="msg" class="small"></div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-sm align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>emp_no</th>
+            <th>first_name</th>
+            <th>last_name</th>
+            <th>dept_no</th>
+            <th>dept_name</th>
+          </tr>
+        </thead>
+        <tbody id="tblBody">
+          <tr><td colspan="5" class="text-muted">Sin datos</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div id="listInfo" class="text-end small text-muted"></div>
+  </div>
+  <script>
+(function () {
+  'use strict';
+  var API = window.location.origin;
+
+  function $(s) { return document.querySelector(s); }
+  function setMsg(el, type, text) {
+    if (!el) return;
+    el.className = 'small' + (type ? ' text-' + type : '');
+    el.textContent = text || '';
+  }
+
+  var form    = $('#formDept');
+  var msg     = $('#msg');
+  var tbody   = $('#tblBody');
+  var info    = $('#listInfo');
+  var sel     = $('#deptSelect');
+  var limitI  = $('#limit');
+  var offsetI = $('#offset');
+  var btnClear= $('#btnClear');
+
+  var DEPTS = new Map();
+
+  function renderRows(rows, dept_no, dept_name) {
+    if (!tbody) return;
+    var arr = Array.isArray(rows) ? rows : [];
+    if (arr.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="text-muted">Sin datos</td></tr>';
+      return;
+    }
+    var html = arr.map(function (r) {
+      return (
+        '<tr>' +
+          '<td>' + (r.emp_no != null ? r.emp_no : '') + '</td>' +
+          '<td>' + (r.first_name || '') + '</td>' +
+          '<td>' + (r.last_name  || '') + '</td>' +
+          '<td>' + (dept_no      || '') + '</td>' +
+          '<td>' + (dept_name    || '') + '</td>' +
+        '</tr>'
+      );
+    }).join('');
+    tbody.innerHTML = html;
+  }
+
+  function qs(obj) {
+    var u = new URLSearchParams();
+    Object.keys(obj).forEach(function (k) { u.set(k, obj[k]); });
+    return u.toString();
+  }
+
+  async function loadDepartments() {
+    setMsg(msg, '', 'Cargando departamentos…');
+    try {
+      var r = await fetch(API + '/api/employees/departments', { headers: { Accept: 'application/json' } });
+      var text = await r.text();
+      console.log('[departments] status', r.status, 'len', text.length);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      var rows = text ? JSON.parse(text) : [];
+      if (!Array.isArray(rows)) throw new Error('Respuesta inválida de departamentos');
+
+      if (!sel) return;
+      sel.innerHTML = '<option value="">Selecciona…</option>' + rows.map(function (d) {
+        return '<option value="' + d.dept_no + '">' + d.dept_no + ' — ' + d.dept_name + '</option>';
+      }).join('');
+
+      rows.forEach(function (d) { DEPTS.set(String(d.dept_no).toUpperCase(), d.dept_name); });
+      setMsg(msg, 'success', '');
+
+      if (rows.length > 0) {
+        sel.value = rows[0].dept_no;
+        if (form) form.dispatchEvent(new Event('submit'));
+      } else {
+        setMsg(msg, 'warning', 'No hay departamentos en el catálogo.');
+      }
+    } catch (e) {
+      console.error('departments error:', e);
+      setMsg(msg, 'danger', e.message || 'No se pudo cargar el catálogo');
+    }
+  }
+
+  async function fetchEmployeesByDept(dept_no, limit, offset) {
+    var url = API + '/api/employees/' + encodeURIComponent(dept_no) + '/employees?' +
+              qs({ limit: String(limit), offset: String(offset) });
+    var r = await fetch(url, { headers: { Accept: 'application/json' } });
+    var text = await r.text();
+    console.log('[dept employees] GET', url, 'status', r.status, 'len', text.length);
+    var data = null; try { data = text ? JSON.parse(text) : null; } catch (_e) {}
+    if (!r.ok) {
+      var m = (data && (data.error || data.message)) || 'HTTP ' + r.status;
+      throw new Error(m);
+    }
+    return Array.isArray(data) ? data : [];
+  }
+
+  if (form) form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    setMsg(msg, '', 'Consultando…');
+
+    var dept_no = (sel && typeof sel.value === 'string') ? sel.value.trim().toUpperCase() : '';
+    var limit   = Math.min(Math.max(Number((limitI && limitI.value) || '20'), 1), 100);
+    var offset  = Math.max(Number((offsetI && offsetI.value) || '0'), 0);
+
+    if (!dept_no) { setMsg(msg, 'danger', 'Selecciona un departamento.'); return; }
+    var dept_name = DEPTS.get(dept_no) || '';
+
+    try {
+      var rows = await fetchEmployeesByDept(dept_no, limit, offset);
+      renderRows(rows, dept_no, dept_name);
+      if (info) info.textContent = 'Mostrando ' + rows.length + ' empleados de ' + dept_no + ' — ' + dept_name;
+      setMsg(msg, 'success', '');
+    } catch (err) {
+      console.error('fetch by dept error:', err);
+      renderRows([], dept_no, dept_name);
+      if (info) info.textContent = '';
+      setMsg(msg, 'danger', err.message || 'No se pudo consultar');
+    }
+  });
+
+  if (sel && form) sel.addEventListener('change', function () {
+    form.dispatchEvent(new Event('submit'));
+  });
+
+  if (btnClear) btnClear.addEventListener('click', function () {
+    if (sel) sel.value = '';
+    if (limitI) limitI.value = '20';
+    if (offsetI) offsetI.value = '0';
+    if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-muted">Sin datos</td></tr>';
+    if (info) info.textContent = '';
+    setMsg(msg, '', '');
+  });
+
+  document.addEventListener('DOMContentLoaded', loadDepartments);
+})();
+</script>
+</body>
+</html>
