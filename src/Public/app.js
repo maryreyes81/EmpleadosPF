@@ -35,26 +35,86 @@
     }
   }
 
+  // ===== Estado de paginación =====
+  const state = {
+    page: 1,
+    limit: 20,
+    total: null,      // si el backend lo manda (header o body) lo usamos
+    hasMore: false,   // cuando no hay total, inferimos con rows.length >= limit
+    lastQueryKey: '', // para resetear a pág. 1 cuando cambien filtros o limit
+  };
+
+  // Query key (sin offset) para detectar cambio de filtros/limit
+  const makeQueryKey = () => JSON.stringify({
+    emp_no: $('#f_emp_no')?.value?.trim() || '',
+    first_name: $('#f_first_name')?.value?.trim() || '',
+    last_name:  $('#f_last_name')?.value?.trim()  || '',
+    gender:     $('#f_gender')?.value             || '',
+    birth_date: $('#f_birth_date')?.value         || '',
+    hire_date:  $('#f_hire_date')?.value          || '',
+    limit:      Number($('#f_limit')?.value || 20)
+  });
+
+  // Construye params con limit/offset a partir de la página
+  const buildParamsFromForm = (page = 1) => {
+    const limitEl = $('#f_limit');
+    const offsetEl = $('#f_offset');
+
+    const limit = Math.max(1, Number(limitEl?.value || 20));
+    const offset = (page - 1) * limit;
+
+    if (offsetEl) offsetEl.value = String(offset); // sincroniza input visible
+
+    const params = {
+      first_name: ($('#f_first_name')?.value || '').trim(),
+      last_name:  ($('#f_last_name')?.value  || '').trim(),
+      gender:      $('#f_gender')?.value || '',
+      birth_date:   $('#f_birth_date')?.value || '',
+      hire_date:    $('#f_hire_date')?.value || '',
+      limit,
+      offset
+    };
+    return { params, limit, offset };
+  };
+
   // ===== API helpers =====
   async function fetchEmployees(params) {
+    // IMPORTANTE: usar /api/employees/find para filtros+paginación
     const qs  = new URLSearchParams(params);
-    const url = `${API}/api/employees?${qs.toString()}`;
+    const url = `${API}/api/employees/find?${qs.toString()}`;
 
     const res  = await fetch(url, { headers: { 'Accept': 'application/json' } });
-    const text = await res.text();
+    const raw  = await res.text();
+
+    // Intenta parsear JSON (si viene vacío, queda null)
     let data = null;
-    try { data = text ? JSON.parse(text) : null; } catch {}
+    try { data = raw ? JSON.parse(raw) : null; } catch {}
 
     if (!res.ok) {
       const msg = (data && (data.error || data.message)) || `HTTP ${res.status}`;
       throw new Error(msg);
     }
-    if (Array.isArray(data)) return { rows: data, total: data.length };
-    if (data && Array.isArray(data.rows)) {
-      const total = (typeof data.total === 'number') ? data.total : data.rows.length;
-      return { rows: data.rows, total };
+
+    // Total por header
+    const totalHeader = res.headers.get('X-Total-Count');
+    let totalFromHeader = (totalHeader != null) ? Number(totalHeader) : null;
+    if (Number.isNaN(totalFromHeader)) totalFromHeader = null;
+
+    // Soportar formatos:
+    // 1) Array puro
+    // 2) { rows/data: [...], total, limit, offset }
+    let rows = [];
+    let total = totalFromHeader;
+
+    if (Array.isArray(data)) {
+      rows = data;
+      if (total == null) total = rows.length;
+    } else if (data && (Array.isArray(data.rows) || Array.isArray(data.data))) {
+      rows = data.rows ?? data.data ?? [];
+      if (typeof data.total === 'number') total = data.total;
     }
-    return { rows: [], total: 0 };
+
+    return { rows, total };
   }
 
   async function createEmployee(payload) {
@@ -92,7 +152,7 @@
     return data; // { ok:true, deleted:1 }
   }
 
-  // ===== UI helpers =====
+  // ===== UI: tabla =====
   function renderRows(rows) {
     const tbody = $('#tblFindBody');
     if (!tbody) return;
@@ -119,6 +179,107 @@
     `).join('');
   }
 
+  // ===== UI: pager =====
+  function renderPager() {
+    const pager = $('#pager');
+    const pagerInfo = $('#pagerInfo');
+    if (!pager || !pagerInfo) return;
+
+    const { page, limit, total, hasMore } = state;
+
+    const start = (page - 1) * limit + 1;
+    const end = total != null ? Math.min(page * limit, total) : page * limit;
+
+    if (total != null) {
+      pagerInfo.textContent = `Mostrando ${start}–${end} de ${total} (página ${page})`;
+    } else {
+      pagerInfo.textContent = `Mostrando ${start}–${end} (página ${page})`;
+    }
+
+    const canPrev = page > 1;
+    const canNext = total != null ? (page * limit) < total : hasMore;
+
+    let html = '';
+
+    if (total != null) {
+      const totalPages = Math.max(1, Math.ceil(total / limit));
+      const windowSize = 5;
+      let from = Math.max(1, page - Math.floor(windowSize / 2));
+      let to = Math.min(totalPages, from + windowSize - 1);
+      if (to - from + 1 < windowSize) from = Math.max(1, to - windowSize + 1);
+
+      html += `
+        <li class="page-item ${page === 1 ? 'disabled' : ''}">
+          <a class="page-link" href="#" data-goto="first" aria-label="Primera">&laquo;</a>
+        </li>
+        <li class="page-item ${!canPrev ? 'disabled' : ''}">
+          <a class="page-link" href="#" data-goto="prev" aria-label="Anterior">&lsaquo;</a>
+        </li>
+      `;
+      for (let p = from; p <= to; p++) {
+        html += `
+          <li class="page-item ${p === page ? 'active' : ''}">
+            <a class="page-link" href="#" data-goto="${p}">${p}</a>
+          </li>
+        `;
+      }
+      html += `
+        <li class="page-item ${!canNext ? 'disabled' : ''}">
+          <a class="page-link" href="#" data-goto="next" aria-label="Siguiente">&rsaquo;</a>
+        </li>
+        <li class="page-item ${page === totalPages ? 'disabled' : ''}">
+          <a class="page-link" href="#" data-goto="last" aria-label="Última">&raquo;</a>
+        </li>
+      `;
+    } else {
+      // Sin total conocido → Prev / [page] / Next
+      html = `
+        <li class="page-item ${!canPrev ? 'disabled' : ''}">
+          <a class="page-link" href="#" data-goto="prev">&lsaquo; Prev</a>
+        </li>
+        <li class="page-item active"><span class="page-link">${page}</span></li>
+        <li class="page-item ${!canNext ? 'disabled' : ''}">
+          <a class="page-link" href="#" data-goto="next">Next &rsaquo;</a>
+        </li>
+      `;
+    }
+
+    pager.innerHTML = html;
+  }
+
+  // Clicks del pager
+  function bindPagerClicks() {
+    const pager = $('#pager');
+    if (!pager) return;
+
+    pager.addEventListener('click', (e) => {
+      const a = e.target.closest('a.page-link');
+      if (!a) return;
+      e.preventDefault();
+
+      const goto = a.getAttribute('data-goto');
+      const { page, limit, total } = state;
+
+      if (goto === 'prev' && page > 1) return runFind(page - 1);
+      if (goto === 'next') {
+        if (total != null) {
+          const totalPages = Math.max(1, Math.ceil(total / limit));
+          if (page < totalPages) return runFind(page + 1);
+        } else {
+          return runFind(page + 1); // sin total, confiamos en hasMore
+        }
+      }
+      if (goto === 'first') return runFind(1);
+      if (goto === 'last' && total != null) {
+        const totalPages = Math.max(1, Math.ceil(total / limit));
+        return runFind(totalPages);
+      }
+      const numeric = Number(goto);
+      if (!Number.isNaN(numeric)) return runFind(numeric);
+    });
+  }
+
+  // ===== Limpia formulario de búsqueda =====
   function clearFindForm() {
     const ids = ['f_emp_no','f_first_name','f_last_name','f_gender','f_birth_date','f_hire_date','f_limit','f_offset'];
     ids.forEach(id => {
@@ -128,6 +289,58 @@
       else if (id === 'f_offset') el.value = '0';
       else el.value = '';
     });
+  }
+
+  // ===== Buscar (con paginación) =====
+  async function runFind(page = 1) {
+    const findMsg = $('#findMsg');
+    const findInfo = $('#findInfo');
+
+    // Si cambió la query (filtros/limit), resetea a primera página
+    const qKey = makeQueryKey();
+    if (qKey !== state.lastQueryKey) {
+      page = 1;
+      state.lastQueryKey = qKey;
+    }
+
+    const { params, limit, offset } = buildParamsFromForm(page);
+    state.page = page;
+    state.limit = limit;
+
+    setMsg(findMsg, '', 'Searching…');
+    $('#tblFindBody').innerHTML = `<tr><td colspan="7" class="text-muted">Cargando...</td></tr>`;
+    if (findInfo) findInfo.textContent = '';
+
+    try {
+      const { rows, total } = await fetchEmployees(params);
+
+      // Estado total/hasMore
+      state.total = (typeof total === 'number') ? total : null;
+      state.hasMore = state.total == null ? (rows.length >= limit) : ((page * limit) < state.total);
+
+      renderRows(rows);
+      renderPager();
+
+      // Info compacta arriba a la derecha
+      if (rows.length) {
+        const startIdx = offset + 1;
+        const endIdx = offset + rows.length;
+        if (state.total != null) {
+          findInfo && (findInfo.textContent = `Resultados: ${state.total} | Mostrando ${startIdx}–${endIdx}`);
+        } else {
+          findInfo && (findInfo.textContent = `Mostrando ${startIdx}–${endIdx}`);
+        }
+      } else {
+        findInfo && (findInfo.textContent = `0 resultados`);
+      }
+
+      setMsg(findMsg, 'success', '');
+    } catch (err) {
+      console.error('[find] error:', err);
+      renderRows([]);
+      renderPager(); // limpiará el pager acorde al estado
+      setMsg(findMsg, 'danger', err.message || 'Unable to fetch data.');
+    }
   }
 
   // ===== App =====
@@ -143,6 +356,9 @@
       window.location.href = '/login.html';
     });
 
+    // Pager
+    bindPagerClicks();
+
     // ===== BÚSQUEDA =====
     const formFind      = $('#formFind');
     const findMsg       = $('#findMsg');
@@ -151,42 +367,20 @@
 
     formFind?.addEventListener('submit', async (e) => {
       e.preventDefault();
-      setMsg(findMsg, '', 'Searching…');
 
-      // Lee emp_no de forma robusta
-      const empNoEl =
-        document.getElementById('f_emp_no') ||
-        document.querySelector('#emp_noFind, [name="f_emp_no"], [name="emp_no"], #emp_no');
+      // Lee SOLO el campo de búsqueda de emp_no
+      const empNoEl  = document.getElementById('f_emp_no');
+      const empNoVal = (empNoEl?.value ?? '').trim();
+      const isValidEmpNo = /^\d+$/.test(empNoVal) && Number(empNoVal) > 0;
 
-      const empNoVal = (empNoEl && typeof empNoEl.value === 'string') ? empNoEl.value.trim() : '';
-      console.log('[find] empNoEl:', empNoEl, 'empNoVal:', empNoVal);
-
-      // Resto de filtros
-      const params = {
-        first_name: ($('#f_first_name')?.value || '').trim(),
-        last_name:  ($('#f_last_name')?.value  || '').trim(),
-        gender:     ($('#f_gender')?.value     || '').trim(),
-        birth_date: ($('#f_birth_date')?.value || '').trim(),
-        hire_date:  ($('#f_hire_date')?.value  || '').trim(),
-        limit:      ($('#f_limit')?.value      || '20').trim(),
-        offset:     ($('#f_offset')?.value     || '0').trim(),
-      };
-
-      try {
-        // Si hay emp_no → busca por ID
-        if (empNoVal !== '') {
+      // Si hay emp_no válido → búsqueda directa por ID (sin paginación)
+      if (isValidEmpNo) {
+        setMsg(findMsg, '', 'Searching…');
+        try {
           const n = Number(empNoVal);
-          if (!Number.isInteger(n) || n <= 0) {
-            setMsg(findMsg, 'danger', 'emp_no debe ser entero positivo');
-            return;
-          }
-
           const url = `${API}/api/employees/${n}`;
-          console.log('[find] GET', url);
-
           const r = await fetch(url, { headers: { 'Accept': 'application/json' } });
           const raw = await r.text();
-          console.log('[find] status', r.status, 'body', raw);
 
           if (r.status === 404) {
             renderRows([]);
@@ -199,38 +393,37 @@
             const msg = (dataErr && (dataErr.error || dataErr.message)) || `HTTP ${r.status}`;
             throw new Error(msg);
           }
-
           const row = raw ? JSON.parse(raw) : null;
           renderRows(row ? [row] : []);
+          state.total = row ? 1 : 0; state.page = 1; state.limit = 20; state.hasMore = false;
+          renderPager();
           findInfo && (findInfo.textContent = row ? '1 resultado' : '0 resultados');
           setMsg(findMsg, 'success', '');
           return;
+        } catch (err) {
+          console.error('[find by id] error:', err);
+          renderRows([]);
+          renderPager();
+          findInfo && (findInfo.textContent = '');
+          setMsg(findMsg, 'danger', err.message || 'Unable to fetch data.');
+          return;
         }
-
-        // Sin emp_no → lista
-        console.log('[find] sin emp_no, params:', params);
-        const result = await fetchEmployees(params);
-        const rows   = Array.isArray(result?.rows) ? result.rows : [];
-        const total  = (typeof result?.total === 'number') ? result.total : rows.length;
-
-        renderRows(rows);
-        findInfo && (findInfo.textContent = `mostrando ${rows.length} de ${total}`);
-        setMsg(findMsg, 'success', '');
-      } catch (err) {
-        console.error('[find] error:', err);
-        renderRows([]);
-        findInfo && (findInfo.textContent = '');
-        setMsg(findMsg, 'danger', err.message || 'Unable to fetch data.');
       }
+
+      // Si emp_no está vacío o es inválido → ejecutar listado paginado (desde pág. 1)
+      runFind(1);
     });
 
     // Clear
     btnFindClear?.addEventListener('click', () => {
       clearFindForm();
+      state.page = 1; state.total = null; state.hasMore = false; state.lastQueryKey = '';
       renderRows([]);
+      renderPager();
       setMsg(findMsg, '', '');
       if (findInfo) findInfo.textContent = '';
-      // formFind?.dispatchEvent(new Event('submit'));
+      // Si prefieres que al limpiar haga una nueva búsqueda vacía:
+      // runFind(1);
     });
 
     // ===== Tabla: Update / Delete =====
@@ -253,7 +446,8 @@
         if (!confirm(`¿Eliminar empleado #${id}?`)) return;
         try {
           await deleteEmployee(id);
-          formFind?.dispatchEvent(new Event('submit')); // refresca
+          // refresca la página actual
+          runFind(state.page);
         } catch (err) {
           alert(err.message || 'No se pudo eliminar.');
         }
@@ -272,11 +466,10 @@
         const hireDate  = toYMD(tr.children[5]?.textContent || '');
 
         if (AUTO_SAVE_ON_UPDATE) {
-          // PUT inmediato
           try {
             await updateEmployee(id, { first_name: firstName, last_name: lastName, gender, birth_date: birthDate, hire_date: hireDate });
             setMsg(createMsg, 'success', `Employee #${id} updated.`);
-            formFind?.dispatchEvent(new Event('submit'));
+            runFind(state.page);
           } catch (err) {
             setMsg(createMsg, 'danger', err.message || 'Unable to update.');
           }
@@ -292,17 +485,14 @@
         $('#birth_date') && ($('#birth_date').value = birthDate);
         $('#hire_date')  && ($('#hire_date').value  = hireDate);
 
-        // Cambia el texto del submit
         const submitBtn = $('#formCreate [type="submit"]');
         submitBtn && (submitBtn.textContent = 'Guardar cambios');
 
-        // Mensaje
         setMsg(createMsg, '', `Editando registro #${id}`);
 
-        // Scroll + foco + highlight para que “sí pase algo”
-        const card = formCreate?.closest('.card');
         formCreate?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         $('#first_name')?.focus();
+        const card = formCreate?.closest('.card');
         if (card) {
           card.style.transition = 'box-shadow 0.3s ease';
           const oldShadow = card.style.boxShadow;
@@ -326,7 +516,6 @@
       const gender     = $('#gender')     ? $('#gender').value     : '';
       const hire_date  = $('#hire_date')  ? $('#hire_date').value  : '';
 
-      // Validaciones
       if (!first_name || !last_name || !gender || !birth_date || !hire_date) {
         setMsg(createMsg, 'danger', 'Por favor completa todos los campos requeridos.');
         return;
@@ -357,24 +546,21 @@
 
       try {
         if (editing) {
-          console.log('[update] PUT', `${API}/api/employees/${emp_no}`, body);
           await updateEmployee(emp_no, body);
           setMsg(createMsg, 'success', `Employee #${emp_no} updated.`);
         } else {
-          console.log('[insert] POST', `${API}/api/employees`, body);
           const data = await createEmployee(body);
           const shownId = (data && data.emp_no != null) ? data.emp_no : 'N/A';
           setMsg(createMsg, 'success', `Employee created with emp_no ${shownId}.`);
         }
 
         formCreate.reset();
-        // volver a modo Insert
         empNoInput && empNoInput.setAttribute('disabled', 'disabled');
         const sb = $('#formCreate [type="submit"]');
         sb && (sb.textContent = 'Insert');
 
-        // refresca resultados
-        formFind?.dispatchEvent(new Event('submit'));
+        // refresca manteniendo página actual
+        runFind(state.page);
       } catch (err) {
         console.error('[formCreate] error:', err);
         setMsg(createMsg, 'danger', err.message || (editing ? 'Unable to update.' : 'Unable to create employee.'));
@@ -391,5 +577,12 @@
       sb && (sb.textContent = 'Insert');
       setMsg(createMsg, '', '');
     });
+
+    // --- Opcional: cargar vacío (sin auto-búsqueda)
+    // Si quieres que al abrir la página haga una búsqueda inicial:
+    // runFind(1);
+
+    // Si quieres resetear a pág. 1 cuando cambie el limit manualmente:
+    $('#f_limit')?.addEventListener('change', () => runFind(1));
   });
 })();

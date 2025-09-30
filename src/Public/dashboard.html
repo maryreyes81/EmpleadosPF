@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="es">
-
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -111,11 +110,18 @@
         </thead>
         <tbody id="tblFindBody">
           <tr>
-            <td colspan="6" class="text-muted">Sin datos</td>
+            <td colspan="7" class="text-muted">Sin datos</td>
           </tr>
         </tbody>
       </table>
     </div>
+    <!-- Pager -->
+    <nav aria-label="Resultados" class="d-flex justify-content-between align-items-center">
+      <div id="pagerInfo" class="small text-muted">—</div>
+      <ul id="pager" class="pagination pagination-sm mb-0">
+        <!-- Se llena desde JS -->
+      </ul>
+    </nav>
 
     <!-- Formulario de inserción -->
     <h2 class="h4 mb-3">Employee Insert</h2>

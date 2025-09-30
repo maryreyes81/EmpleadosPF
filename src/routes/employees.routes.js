@@ -44,44 +44,10 @@ const reDate = /^\d{4}-\d{2}-\d{2}$/;
  */
 
 /* =========================================================
-   GET /api/employees
-   Filtros: first_name, last_name, gender, birth_date, hire_date
-   Paginación: limit, offset
-   Respuesta: { rows: [...], total: number }
+   Handler común para listar empleados con filtros/paginación
+   Usado por: GET /api/employees  y  GET /api/employees/find
    ========================================================= */
-/**
- * @openapi
- * /api/employees:
- *   get:
- *     tags: [Employees]
- *     summary: Listar empleados con filtros y paginado
- *     parameters:
- *       - in: query
- *         name: first_name
- *         schema: { type: string }
- *       - in: query
- *         name: last_name
- *         schema: { type: string }
- *       - in: query
- *         name: gender
- *         schema: { type: string, enum: [M, F] }
- *       - in: query
- *         name: birth_date
- *         schema: { type: string, format: date }
- *       - in: query
- *         name: hire_date
- *         schema: { type: string, format: date }
- *       - in: query
- *         name: limit
- *         schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
- *       - in: query
- *         name: offset
- *         schema: { type: integer, minimum: 0, default: 0 }
- *     responses:
- *       200:
- *         description: OK
- */
-router.get('/', async (req, res) => {
+async function listEmployees(req, res) {
   try {
     let {
       first_name = '',
@@ -138,16 +104,60 @@ router.get('/', async (req, res) => {
       [...params, lim, off]
     );
 
-    return res.json({ rows, total });
+    // Header útil para el front
+    res.set('X-Total-Count', String(total));
+    return res.json({ rows, total, limit: lim, offset: off });
   } catch (err) {
-    console.error('GET /api/employees error:', err);
+    console.error('GET /api/employees (listEmployees) error:', err);
     return res.status(500).json({ error: 'Error al consultar empleados' });
   }
-});
+}
 
 /* =========================================================
-   GET /api/employees/search?q=Geor&limit=20
-   Búsqueda por nombre/apellido (rápida)
+   GET /api/employees  (filtros + paginado)
+   ========================================================= */
+/**
+ * @openapi
+ * /api/employees:
+ *   get:
+ *     tags: [Employees]
+ *     summary: Listar empleados con filtros y paginado
+ *     parameters:
+ *       - in: query
+ *         name: first_name
+ *         schema: { type: string }
+ *       - in: query
+ *         name: last_name
+ *         schema: { type: string }
+ *       - in: query
+ *         name: gender
+ *         schema: { type: string, enum: [M, F] }
+ *       - in: query
+ *         name: birth_date
+ *         schema: { type: string, format: date }
+ *       - in: query
+ *         name: hire_date
+ *         schema: { type: string, format: date }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+ *       - in: query
+ *         name: offset
+ *         schema: { type: integer, minimum: 0, default: 0 }
+ *     responses:
+ *       200:
+ *         description: OK
+ */
+router.get('/', listEmployees);
+
+/* =========================================================
+   Alias: GET /api/employees/find  (para compatibilidad con el front)
+   ⚠️ Colocar ANTES de las rutas con parámetros /:emp_no
+   ========================================================= */
+router.get('/find', listEmployees);
+
+/* =========================================================
+   GET /api/employees/search?q=Geor&limit=20  (búsqueda rápida)
    ========================================================= */
 /**
  * @openapi
@@ -704,7 +714,6 @@ router.delete('/:emp_no', async (req, res) => {
     // await q('DELETE FROM dept_emp  WHERE emp_no = ?', [emp_no]);
 
     const result = await q('DELETE FROM employees WHERE emp_no = ?', [emp_no]);
-    // result.affectedRows (en mysql2) o similar
     return res.json({ ok: true, deleted: 1 });
 
   } catch (err) {
